@@ -75,24 +75,38 @@ export class MatchesService {
     if (match.status !== 'ONGOING')
       throw new BadRequestException('Match is not ongoing');
 
-    // ensure scorer is in this match
-    const inMatch = match.participants.some(
-      (p) => p.participantId === dto.participantId,
-    );
+    const sides = match.participants;
+    if (sides.length !== 2)
+      throw new BadRequestException('Match must have 2 participants');
+
+    let scorerId = dto.participantId ?? null;
+    if (dto.kind === 'PENALTY') {
+      if (!dto.foulByParticipantId)
+        throw new BadRequestException(
+          'foulByParticipantId required for PENALTY',
+        );
+      const other = sides.find(
+        (p) => p.participantId !== dto.foulByParticipantId,
+      );
+      if (!other) throw new BadRequestException('Invalid foulByParticipantId');
+      scorerId = other.participantId;
+    }
+
+    if (!scorerId) throw new BadRequestException('participantId is required');
+
+    const inMatch = sides.some((p) => p.participantId === scorerId);
     if (!inMatch)
       throw new BadRequestException('Participant not in this match');
 
-    // create score event
     const created = await this.prisma.scoreEvent.create({
       data: {
         matchId: id,
-        participantId: dto.participantId,
+        participantId: scorerId,
         kind: dto.kind as unknown as $Enums.ScoreKind,
         point: 1,
       },
     });
 
-    // check auto-win by reaching targetPoints
     const target = match.targetPoints ?? match.division?.targetPoints ?? 2;
     const totals = await this.prisma.scoreEvent.groupBy({
       by: ['participantId'],
@@ -112,5 +126,29 @@ export class MatchesService {
     }
 
     return created;
+  }
+
+  async findByDivision(divisionId: string) {
+    return this.prisma.match.findMany({
+      where: { divisionId },
+      orderBy: [{ round: 'asc' }, { order: 'asc' }],
+      include: {
+        participants: true,
+        scores: true,
+      },
+    });
+  }
+
+  async findOne(id: string) {
+    const match = await this.prisma.match.findUnique({
+      where: { id },
+      include: {
+        participants: true,
+        scores: true,
+        division: true,
+      },
+    });
+    if (!match) throw new NotFoundException('Match not found');
+    return match;
   }
 }

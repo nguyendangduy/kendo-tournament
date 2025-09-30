@@ -1,5 +1,5 @@
 /* eslint-disable @typescript-eslint/no-unsafe-call */
-import { IsIn, IsNotEmpty, IsString } from 'class-validator';
+import { IsIn, IsOptional, IsString } from 'class-validator';
 
 export const ScoreKindValues = [
   'MEN',
@@ -11,12 +11,16 @@ export const ScoreKindValues = [
 export type ScoreKind = (typeof ScoreKindValues)[number];
 
 export class ScoreDto {
+  // Người NHẬN điểm (được cộng điểm). Với PENALTY có thể bỏ trống và dùng foulByParticipantId
+  @IsOptional()
   @IsString()
-  @IsNotEmpty()
-  participantId!: string; // scorer
+  participantId?: string;
+
+  // Người phạm lỗi (chỉ dùng khi kind = PENALTY)
+  @IsOptional()
+  @IsString()
+  foulByParticipantId?: string;
 
   @IsIn(ScoreKindValues)
   kind!: ScoreKind;
-
-  // optional: timeSec, note can be added later
 }
