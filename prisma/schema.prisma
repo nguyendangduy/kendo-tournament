@@ -1,0 +1,214 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
+// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
+
+generator client {
+  provider = "prisma-client-js"
+  output   = "../generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// --------------------
+// Enums
+// --------------------
+
+enum TournamentStatus {
+  DRAFT
+  REGISTRATION
+  SCHEDULED
+  IN_PROGRESS
+  COMPLETED
+  CANCELED
+}
+
+enum MatchStatus {
+  SCHEDULED
+  ONGOING
+  PAUSED
+  FINISHED
+  CANCELED
+}
+
+enum ParticipantType {
+  PLAYER
+  TEAM
+}
+
+enum ScoreKind {
+  MEN
+  KOTE
+  DO
+  TSUKI
+  PENALTY
+}
+
+enum Side {
+  RED
+  WHITE
+}
+
+enum BracketType {
+  SINGLE_ELIMINATION
+  ROUND_ROBIN
+}
+
+// --------------------
+// Core models
+// --------------------
+
+model Tournament {
+  id        String           @id @default(cuid())
+  name      String
+  status    TournamentStatus @default(DRAFT)
+  startAt   DateTime?
+  endAt     DateTime?
+  divisions Division[]
+  matches   Match[]
+  createdAt DateTime         @default(now())
+  updatedAt DateTime         @updatedAt
+}
+
+model Division {
+  id               String                @id @default(cuid())
+  tournament       Tournament            @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
+  tournamentId     String
+  name             String
+  bracketType      BracketType
+  targetPoints     Int                   @default(2) // points to win (ippon count)
+  matchDurationSec Int                   @default(180) // seconds per match
+  participants     DivisionParticipant[]
+  matches          Match[]
+  createdAt        DateTime              @default(now())
+  updatedAt        DateTime              @updatedAt
+
+  @@index([tournamentId])
+}
+
+model Player {
+  id              String        @id @default(cuid())
+  name            String
+  club            String?
+  rank            String?
+  participants    Participant[]
+  teamMemberships TeamMember[]
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+}
+
+model Team {
+  id           String        @id @default(cuid())
+  name         String
+  club         String?
+  members      TeamMember[]
+  participants Participant[]
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+}
+
+model TeamMember {
+  team     Team    @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  teamId   String
+  player   Player  @relation(fields: [playerId], references: [id], onDelete: Cascade)
+  playerId String
+  role     String?
+
+  @@id([teamId, playerId])
+}
+
+model Participant {
+  id                  String                @id @default(cuid())
+  type                ParticipantType
+  player              Player?               @relation(fields: [playerId], references: [id], onDelete: SetNull)
+  playerId            String?
+  team                Team?                 @relation(fields: [teamId], references: [id], onDelete: SetNull)
+  teamId              String?
+  divisionAssignments DivisionParticipant[]
+  matchParticipants   MatchParticipant[]
+  scoreEvents         ScoreEvent[]
+  // Back relation: matches this participant won
+  wonMatches          Match[]               @relation("Winner")
+  createdAt           DateTime              @default(now())
+  updatedAt           DateTime              @updatedAt
+
+  @@index([playerId])
+  @@index([teamId])
+}
+
+model DivisionParticipant {
+  division      Division    @relation(fields: [divisionId], references: [id], onDelete: Cascade)
+  divisionId    String
+  participant   Participant @relation(fields: [participantId], references: [id], onDelete: Cascade)
+  participantId String
+  seed          Int?
+
+  @@id([divisionId, participantId])
+}
+
+model Match {
+  id                  String       @id @default(cuid())
+  tournament          Tournament   @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
+  tournamentId        String
+  division            Division?    @relation(fields: [divisionId], references: [id], onDelete: SetNull)
+  divisionId          String?
+  round               Int?
+  order               Int?
+  status              MatchStatus  @default(SCHEDULED)
+  scheduledAt         DateTime?
+  startedAt           DateTime?
+  endedAt             DateTime?
+  durationSec         Int?
+  targetPoints        Int?
+  winner              Participant? @relation("Winner", fields: [winnerParticipantId], references: [id], onDelete: SetNull)
+  winnerParticipantId String?
+  // Single-elimination navigation
+  parentMatch         Match?       @relation("MatchChildren", fields: [parentMatchId], references: [id], onDelete: SetNull)
+  parentMatchId       String?
+  children            Match[]      @relation("MatchChildren")
+  // Misc metadata (RR group label, bracket node index, etc.)
+  bracketData         Json?
+
+  participants MatchParticipant[]
+  scores       ScoreEvent[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([tournamentId])
+  @@index([divisionId])
+  @@index([status])
+  @@index([parentMatchId])
+}
+
+model MatchParticipant {
+  match         Match       @relation(fields: [matchId], references: [id], onDelete: Cascade)
+  matchId       String
+  participant   Participant @relation(fields: [participantId], references: [id], onDelete: Cascade)
+  participantId String
+  side          Side
+
+  @@id([matchId, side])
+  @@unique([matchId, participantId])
+}
+
+model ScoreEvent {
+  id            String      @id @default(cuid())
+  match         Match       @relation(fields: [matchId], references: [id], onDelete: Cascade)
+  matchId       String
+  participant   Participant @relation(fields: [participantId], references: [id], onDelete: Cascade)
+  participantId String
+  kind          ScoreKind
+  point         Int         @default(1)
+  timeSec       Int?
+  note          String?
+
+  createdAt DateTime @default(now())
+
+  @@index([matchId])
+  @@index([participantId])
+}
