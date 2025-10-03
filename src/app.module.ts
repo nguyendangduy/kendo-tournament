@@ -7,6 +7,8 @@ import { DivisionsModule } from './divisions/divisions.module';
 import { PlayersModule } from './players/players.module';
 import { ParticipantsModule } from './participants/participants.module';
 import { MatchesModule } from './matches/matches.module';
+import { APP_GUARD } from '@nestjs/core';
+import { AuthGuard } from './auth/auth.guard';
 
 @Module({
   imports: [
@@ -17,6 +19,10 @@ import { MatchesModule } from './matches/matches.module';
     MatchesModule,
   ],
   controllers: [AppController],
-  providers: [AppService, PrismaService],
+  providers: [
+    AppService,
+    PrismaService,
+    { provide: APP_GUARD, useClass: AuthGuard },
+  ],
 })
 export class AppModule {}

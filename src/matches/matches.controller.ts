@@ -1,7 +1,10 @@
 import { Body, Controller, Get, Param, Patch, Post } from '@nestjs/common';
 import { MatchesService } from './matches.service';
 import { ScoreDto } from './dto/score.dto';
+import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 
+@ApiTags('matches')
+@ApiBearerAuth()
 @Controller('matches')
 export class MatchesController {
   constructor(private readonly service: MatchesService) {}

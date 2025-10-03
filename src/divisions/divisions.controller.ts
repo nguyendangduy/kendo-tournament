@@ -2,7 +2,10 @@ import { Body, Controller, Delete, Get, Param, Post } from '@nestjs/common';
 import { DivisionsService } from './divisions.service';
 import { CreateDivisionDto } from './dto/create-division.dto';
 import { AddDivisionParticipantsDto } from './dto/add-division-participants.dto';
+import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 
+@ApiTags('divisions')
+@ApiBearerAuth()
 @Controller('divisions')
 export class DivisionsController {
   constructor(private readonly service: DivisionsService) {}
